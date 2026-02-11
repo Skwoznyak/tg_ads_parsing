@@ -1,42 +1,35 @@
-from fastapi import APIRouter, HTTPException, Depends
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi import APIRouter, Depends, BackgroundTasks
+from fastapi.responses import StreamingResponse
 import os
-import glob
-from pathlib import Path
 import io
 
 
-from models import Phone_data, Channel_Data
+from models.models import Phone_data, Channel_Data
+
+from service_parsing.parsing import phone_register_send, login_with_cookies, parse_channel_data_optimized
+
+from auth.auth_deps import security
 
 
-from parsing import phone_register_send, login_with_cookies, find_channel_by_name, parse_channel_data_optimized
+parsing_router = APIRouter()
 
 
-import os
+@parsing_router.post('/phone_auth', dependencies=[Depends(security.access_token_required)], tags=['Парсинг'])
+def phone_register(phone_num: Phone_data, background_tasks: BackgroundTasks):
+    background_tasks.add_task(phone_register_send, phone_num.phone,)
+    return {'message': f'Подтверждение отправлено в тг с номером {phone_num.phone}'}
 
 
-from auth_deps import security
-
-
-router = APIRouter()
-
-
-@router.post('/phone_auth', dependencies=[Depends(security.access_token_required)])
-def phone_register(phone_num: Phone_data):
-    phone_register_send(phone_num.phone)
-    return {'message': f'Подтверждение отправлено в тг с номером {phone_num}'}
-
-
-@router.post('/sign_in', dependencies=[Depends(security.access_token_required)])
+@parsing_router.post('/sign_in', dependencies=[Depends(security.access_token_required)], tags=['Парсинг'])
 def sign_in_with_cookie(phone_num: Phone_data):
     driver = login_with_cookies()
     if not driver:
         return {'message': 'Ошибка входа. Нужна авторизация.'}
 
-    return {'message': f'Успешный вход через куки!{phone_num.phone}'}
+    return {'message': f'Успешный вход через куки! {phone_num.phone}'}
 
 
-@router.post('/univers_parsing', dependencies=[Depends(security.access_token_required)])
+@parsing_router.post('/univers_parsing', dependencies=[Depends(security.access_token_required)], tags=['Парсинг'])
 def choose_channel(channel_data: Channel_Data):
     driver = login_with_cookies()
 
@@ -88,37 +81,14 @@ def choose_channel(channel_data: Channel_Data):
         return {'error': f'Ошибка: {e}'}
     finally:
         driver.quit()
-
-
-# @router.get('/download')
-# def download_latest_file():
-#     """
-#     Скачивает последний созданный Excel файл
-#     """
-#     try:
-#         # Ищем все Excel файлы в текущей директории
-#         excel_files = glob.glob("*.xlsx")
-
-#         if not excel_files:
-#             raise HTTPException(
-#                 status_code=404, detail="Excel файлы не найдены")
-
-#         # Сортируем по времени создания (последний первый)
-#         latest_file = max(excel_files, key=os.path.getctime)
-
-#         # Проверяем, что файл существует
-#         if not os.path.exists(latest_file):
-#             raise HTTPException(status_code=404, detail="Файл не найден")
-
-#         # Возвращаем файл для скачивания
-#         return FileResponse(
-#             path=latest_file,
-#             filename=latest_file,
-#             media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-#         )
-
-#     except HTTPException:
-#         raise
-#     except Exception as e:
-#         raise HTTPException(
-#             status_code=500, detail=f"Ошибка при скачивании файла: {e}")
+        
+@parsing_router.delete('/delete_cookies', dependencies=[Depends(security.access_token_required)], tags=['Парсинг'])
+def delete_cookies():
+    try:
+        COOKIES_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "cookies_user.pkl")
+        if not os.path.exists(COOKIES_FILE):
+            return {"message": "Файл cookies не найден", "deleted": False}
+        os.remove(COOKIES_FILE)
+        return {"message": "Cookies удалены", "deleted": True}
+    except OSError as e:
+        return {"message": f"Ошибка при удалении: {e}", "deleted": False}

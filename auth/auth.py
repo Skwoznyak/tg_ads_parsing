@@ -3,7 +3,7 @@ from authx import AuthX, AuthXConfig
 
 from pydantic import BaseModel
 
-from auth_deps import *
+from auth.auth_deps import *
 
 
 auth_router = APIRouter()
@@ -20,4 +20,4 @@ def login(creds: UserLoginSchema, response: Response):
         response.set_cookie(config.JWT_ACCESS_COOKIE_NAME, token)
         return {'message': 'Успешная авторизация', 'access_token': token}
     raise HTTPException(
-        status_code=401, detail='Incorrect username or password')
+        status_code=401, detail='Incorrect Api Key')

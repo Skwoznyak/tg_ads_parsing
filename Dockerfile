@@ -1,39 +1,35 @@
-# Используем официальный Python образ
-FROM python:3.11-slim
+FROM python:3.11-slim-bullseye
 
-# Устанавливаем рабочую директорию
-WORKDIR /app
-
-# Устанавливаем системные зависимости
-RUN apt-get update && apt-get install -y \
-    wget \
-    curl \
-    gnupg \
-    && rm -rf /var/lib/apt/lists/*
-
-# Устанавливаем Chromium и ChromeDriver из репозиториев Debian
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     chromium \
     chromium-driver \
-    && rm -rf /var/lib/apt/lists/*
+    libnss3 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libxkbcommon0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxrandr2 \
+    libgbm1 \
+    libasound2 \
+    fonts-liberation \
+    libappindicator3-1 \
+    libxshmfence1 \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Копируем файл зависимостей
+
+WORKDIR /app
+
 COPY requirements.txt .
 
-# Устанавливаем Python зависимости
-RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Копируем все файлы проекта
 COPY . .
 
-# Создаём директорию для cookies и Excel файлов
 RUN mkdir -p /app/data
 
-# Открываем порт для FastAPI
 EXPOSE 8000
 
-# Запускаем приложение
-# Render использует переменную окружения PORT
-# Используем shell форму CMD для подстановки переменных
-CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["python", "main.py"]
